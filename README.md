@@ -1,1 +1,2 @@
-https://vulkan.lunarg.com/doc/view/latest/linux/getting_started_ubuntu.html
+To generate GLAD files
+https://glad.dav1d.de/
