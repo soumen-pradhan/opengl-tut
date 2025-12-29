@@ -20,6 +20,8 @@ target_sources(${PROJECT_NAME}
         FILE_SET common
         TYPE HEADERS
         BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src/include
+        FILES
+            src/include/defer.h
 
     PUBLIC
         FILE_SET gladHeaders
@@ -41,6 +43,15 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/W4>
-    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:-Wall -Wextra -Wpedantic>
+    $<$<C_COMPILER_ID:MSVC>:/W4 >
+    $<$<OR:$<C_COMPILER_ID:GNU>,$<C_COMPILER_ID:Clang>>:-Wall -Wextra -Wpedantic>
+
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /EHs-c->
+    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:-Wall -Wextra -Wpedantic -fno-exceptions>
+)
+
+target_compile_definitions(${PROJECT_NAME}
+    PRIVATE
+        SPDLOG_NO_EXCEPTIONS
+        _HAS_EXCEPTIONS=0
 )
