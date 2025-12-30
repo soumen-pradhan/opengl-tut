@@ -92,6 +92,7 @@ int main()
 
             shader.useProgram();
             shader.setUniformFloat("timeValue", timeValue);
+            shader.setUniformFloat("worldOffset", 0.5f);
 
             glBindVertexArray(vertexArrayObj);
             glDrawArrays(GL_TRIANGLES, 0, 3);
