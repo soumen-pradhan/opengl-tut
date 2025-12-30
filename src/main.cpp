@@ -83,6 +83,10 @@ int main()
             glEnableVertexAttribArray(0);
         }
     }
+    DEFER({
+        glDeleteBuffers(2, vertexBufferObj);
+        glDeleteVertexArrays(2, vertexArrayObj);
+    });
 
     uint32_t vertexShader = 0;
     {
@@ -120,16 +124,41 @@ int main()
         }
     }
 
+    uint32_t fragShader2 = 0;
+    {
+        const std::string fragShader2Src = loadFile("shaders/shader2.frag");
+        const char* fragShader2SrcPtr = fragShader2Src.c_str();
+
+        fragShader2 = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragShader2, 1, &fragShader2SrcPtr, NULL);
+        glCompileShader(fragShader2);
+
+        int success = GL_FALSE;
+        char infoLog[512] = { 0 };
+        glGetShaderiv(fragShader2, GL_COMPILE_STATUS, &success);
+        if (success == GL_FALSE) {
+            glGetShaderInfoLog(fragShader2, sizeof(infoLog), NULL, infoLog);
+            SPDLOG_ERROR("Frag Shader compilation: {}", infoLog);
+        }
+    }
+
     uint32_t shaderProgram = 0;
+    uint32_t shaderProgram2 = 0;
     {
         shaderProgram = glCreateProgram();
         glAttachShader(shaderProgram, vertexShader);
         glAttachShader(shaderProgram, fragShader);
         glLinkProgram(shaderProgram);
 
+        shaderProgram2 = glCreateProgram();
+        glAttachShader(shaderProgram2, vertexShader);
+        glAttachShader(shaderProgram2, fragShader2);
+        glLinkProgram(shaderProgram2);
+
         DEFER({
             glDeleteShader(vertexShader);
             glDeleteShader(fragShader);
+            glDeleteShader(fragShader2);
         });
 
         int success = GL_FALSE;
@@ -139,7 +168,17 @@ int main()
             glGetProgramInfoLog(shaderProgram, sizeof(infoLog), NULL, infoLog);
             SPDLOG_ERROR("Shader linking: {}", infoLog);
         }
+
+        glGetProgramiv(shaderProgram2, GL_LINK_STATUS, &success);
+        if (success == GL_FALSE) {
+            glGetProgramInfoLog(shaderProgram2, sizeof(infoLog), NULL, infoLog);
+            SPDLOG_ERROR("Shader2 linking: {}", infoLog);
+        }
     }
+    DEFER({
+        glDeleteProgram(shaderProgram);
+        glDeleteProgram(shaderProgram2);
+    });
 
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
@@ -152,6 +191,7 @@ int main()
             glBindVertexArray(vertexArrayObj[0]);
             glDrawArrays(GL_TRIANGLES, 0, 3);
 
+            glUseProgram(shaderProgram2);
             glBindVertexArray(vertexArrayObj[1]);
             glDrawArrays(GL_TRIANGLES, 0, 3);
         }
