@@ -55,3 +55,17 @@ target_compile_definitions(${PROJECT_NAME}
         SPDLOG_NO_EXCEPTIONS
         _HAS_EXCEPTIONS=0
 )
+
+# Copy Shader files
+file(GLOB_RECURSE SHADERS
+    "${CMAKE_SOURCE_DIR}/src/shaders/*"
+)
+
+add_custom_target(copy_shaders ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/src/shaders
+            $<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders
+    DEPENDS ${SHADERS}
+)
+
+add_dependencies(${PROJECT_NAME} copy_shaders)

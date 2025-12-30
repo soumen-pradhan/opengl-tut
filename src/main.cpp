@@ -1,4 +1,7 @@
+#include <filesystem>
+#include <fstream>
 #include <stdint.h>
+#include <string>
 
 #include <glad/glad.h> // glad has to be above glfw3 header
 
@@ -10,6 +13,8 @@
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
+
+std::string loadFile(const std::filesystem::path& path);
 
 int main()
 {
@@ -46,11 +51,92 @@ int main()
 
     SPDLOG_INFO("OpenGL {}", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
 
+    uint32_t vertexBufferObj = 0;
+    uint32_t vertexArrayObj = 0;
+    {
+        float vertices[] = {
+            -0.5f, -0.5f, 0.0f,
+            0.5f, -0.5f, 0.0f,
+            0.0f, 0.5f, 0.0f
+        };
+
+        glGenBuffers(1, &vertexBufferObj);
+        glGenVertexArrays(1, &vertexArrayObj);
+
+        glBindVertexArray(vertexArrayObj);
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObj);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+    }
+
+    uint32_t vertexShader = 0;
+    {
+        const std::string vertexShaderSrc = loadFile("shaders/shader.vert");
+        const char* vertexShaderSrcPtr = vertexShaderSrc.c_str();
+
+        vertexShader = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertexShader, 1, &vertexShaderSrcPtr, NULL);
+        glCompileShader(vertexShader);
+
+        int success = GL_FALSE;
+        char infoLog[512] = { 0 };
+        glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+        if (success == GL_FALSE) {
+            glGetShaderInfoLog(vertexShader, sizeof(infoLog), NULL, infoLog);
+            SPDLOG_ERROR("Vertex Shader compilation: {}", infoLog);
+        }
+    }
+
+    uint32_t fragShader = 0;
+    {
+        const std::string fragShaderSrc = loadFile("shaders/shader.frag");
+        const char* fragShaderSrcPtr = fragShaderSrc.c_str();
+
+        fragShader = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragShader, 1, &fragShaderSrcPtr, NULL);
+        glCompileShader(fragShader);
+
+        int success = GL_FALSE;
+        char infoLog[512] = { 0 };
+        glGetShaderiv(fragShader, GL_COMPILE_STATUS, &success);
+        if (success == GL_FALSE) {
+            glGetShaderInfoLog(fragShader, sizeof(infoLog), NULL, infoLog);
+            SPDLOG_ERROR("Frag Shader compilation: {}", infoLog);
+        }
+    }
+
+    uint32_t shaderProgram = 0;
+    {
+        shaderProgram = glCreateProgram();
+        glAttachShader(shaderProgram, vertexShader);
+        glAttachShader(shaderProgram, fragShader);
+        glLinkProgram(shaderProgram);
+
+        DEFER({
+            glDeleteShader(vertexShader);
+            glDeleteShader(fragShader);
+        });
+
+        int success = GL_FALSE;
+        char infoLog[512] = { 0 };
+        glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+        if (success == GL_FALSE) {
+            glGetProgramInfoLog(shaderProgram, sizeof(infoLog), NULL, infoLog);
+            SPDLOG_ERROR("Shader linking: {}", infoLog);
+        }
+    }
+
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
 
         glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
+
+        glUseProgram(shaderProgram);
+        glBindVertexArray(vertexArrayObj);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -72,4 +158,16 @@ void processInput(GLFWwindow* window)
         SPDLOG_DEBUG("Pressed Esc Key");
         glfwSetWindowShouldClose(window, true);
     }
+}
+
+std::string loadFile(const std::filesystem::path& path)
+{
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        return "";
+    }
+
+    std::string data(std::filesystem::file_size(path), '\0');
+    file.read(data.data(), data.size());
+    return data;
 }
