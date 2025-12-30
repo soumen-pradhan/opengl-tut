@@ -51,40 +51,37 @@ int main()
 
     SPDLOG_INFO("OpenGL {}", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
 
-    uint32_t vertexBufferObj = 0;
-    uint32_t vertexArrayObj = 0;
-    uint32_t elementBufferObj = 0;
+    uint32_t vertexBufferObj[2] = { 0 };
+    uint32_t vertexArrayObj[2] = { 0 };
     {
         // clang-format off
-        float vertices[] = {
-            0.1f, 0.0f, 0.0f,
-            0.3f, 0.0f, 0.0f,
-            0.2f, 0.2f, 0.0f,
-            -0.1f, 0.0f, 0.0f,
-            -0.3f, 0.0f, 0.0f,
-            -0.2f, -0.2f, 0.0f,
+        float vertices[][3*3] ={
+            {
+                0.1f, 0.0f, 0.0f,
+                0.3f, 0.0f, 0.0f,
+                0.2f, 0.2f, 0.0f
+            },
+            {
+                -0.1f, 0.0f, 0.0f,
+                -0.3f, 0.0f, 0.0f,
+                -0.2f, -0.2f, 0.0f
+            }
         };
 
-        uint32_t indices[] = {
-            0, 1, 2,
-            3, 4, 5
-        };
         // clang-format on
 
-        glGenBuffers(1, &vertexBufferObj);
-        glGenVertexArrays(1, &vertexArrayObj);
-        glGenBuffers(1, &elementBufferObj);
+        glGenBuffers(2, vertexBufferObj);
+        glGenVertexArrays(2, vertexArrayObj);
 
-        glBindVertexArray(vertexArrayObj);
+        for (int i = 0; i < 2; i++) {
+            glBindVertexArray(vertexArrayObj[i]);
 
-        glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObj);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+            glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObj[i]);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[i]), vertices[i], GL_STATIC_DRAW);
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementBufferObj);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(0);
+        }
     }
 
     uint32_t vertexShader = 0;
@@ -152,8 +149,11 @@ int main()
 
         {
             glUseProgram(shaderProgram);
-            glBindVertexArray(vertexArrayObj);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+            glBindVertexArray(vertexArrayObj[0]);
+            glDrawArrays(GL_TRIANGLES, 0, 3);
+
+            glBindVertexArray(vertexArrayObj[1]);
+            glDrawArrays(GL_TRIANGLES, 0, 3);
         }
 
         glfwSwapBuffers(window);
