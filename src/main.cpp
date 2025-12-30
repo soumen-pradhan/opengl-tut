@@ -14,7 +14,7 @@ void processInput(GLFWwindow* window);
 int main()
 {
     spdlog::set_level(spdlog::level::trace);
-    spdlog::set_pattern("%Y-%m-%d %H:%M:%S.%e %^%5l%$ | %s:%# | %v");
+    spdlog::set_pattern("%Y-%m-%d %H:%M:%S.%e %^%-8l%$ | %s:%5# | %v");
 
     if (!glfwInit()) {
         SPDLOG_ERROR("Failed to init GLFW");
@@ -88,11 +88,7 @@ int main()
 
         // render
         {
-            float timeValue = (float)glfwGetTime();
-
             shader.useProgram();
-            shader.setUniformFloat("timeValue", timeValue);
-            shader.setUniformFloat("worldOffset", 0.5f);
 
             glBindVertexArray(vertexArrayObj);
             glDrawArrays(GL_TRIANGLES, 0, 3);

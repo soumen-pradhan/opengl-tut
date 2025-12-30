@@ -5,7 +5,7 @@
 #include "defer.h"
 #include "shader.h"
 
-std::string loadFile(const std::filesystem::path& path);
+static std::string loadFile(const std::filesystem::path& path);
 
 static std::string loadFile(const std::filesystem::path& path)
 {
@@ -82,15 +82,27 @@ void Shader::useProgram() const
 
 void Shader::setUniformBool(const char* name, bool value) const
 {
-    glUniform1i(glGetUniformLocation(this->ID, name), (int)value);
+    int loc = glGetUniformLocation(this->ID, name);
+    if (loc == -1) {
+        SPDLOG_WARN("Uniform {} not found", name);
+    }
+    glUniform1i(loc, (int)value);
 }
 
 void Shader::setUniformInt(const char* name, int value) const
 {
-    glUniform1i(glGetUniformLocation(this->ID, name), value);
+    int loc = glGetUniformLocation(this->ID, name);
+    if (loc == -1) {
+        SPDLOG_WARN("Uniform {} not found", name);
+    }
+    glUniform1i(loc, value);
 }
 
 void Shader::setUniformFloat(const char* name, float value) const
 {
-    glUniform1f(glGetUniformLocation(this->ID, name), value);
+    int loc = glGetUniformLocation(this->ID, name);
+    if (loc == -1) {
+        SPDLOG_WARN("Uniform {} not found", name);
+    }
+    glUniform1f(loc, value);
 }
