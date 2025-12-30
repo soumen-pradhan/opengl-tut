@@ -22,6 +22,7 @@ target_sources(${PROJECT_NAME}
         BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src/include
         FILES
             src/include/defer.h
+            src/include/shader.h
 
     PUBLIC
         FILE_SET gladHeaders
@@ -32,6 +33,7 @@ target_sources(${PROJECT_NAME}
 
     PRIVATE
         src/main.cpp
+        src/shader.cpp
         vendor/glad/src/glad.c
 )
 
@@ -53,6 +55,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 target_compile_definitions(${PROJECT_NAME}
     PRIVATE
         SPDLOG_NO_EXCEPTIONS
+        SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
         _HAS_EXCEPTIONS=0
 )
 

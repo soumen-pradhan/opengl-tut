@@ -1,20 +1,15 @@
-#include <filesystem>
-#include <fstream>
-#include <stdint.h>
-#include <string>
+#include <cstdint>
 
 #include <glad/glad.h> // glad has to be above glfw3 header
 
 #include <GLFW/glfw3.h>
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #include <spdlog/spdlog.h>
 
 #include "defer.h"
+#include "shader.h"
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
-
-std::string loadFile(const std::filesystem::path& path);
 
 int main()
 {
@@ -82,97 +77,8 @@ int main()
         glDeleteVertexArrays(1, &vertexArrayObj);
     });
 
-    uint32_t vertexShader = 0;
-    {
-        const std::string vertexShaderSrc = loadFile("shaders/shader.vert");
-        const char* vertexShaderSrcPtr = vertexShaderSrc.c_str();
-
-        vertexShader = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertexShader, 1, &vertexShaderSrcPtr, NULL);
-        glCompileShader(vertexShader);
-
-        int success = GL_FALSE;
-        char infoLog[512] = { 0 };
-        glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-        if (success == GL_FALSE) {
-            glGetShaderInfoLog(vertexShader, sizeof(infoLog), NULL, infoLog);
-            SPDLOG_ERROR("Vertex Shader compilation: {}", infoLog);
-        }
-    }
-
-    uint32_t fragShader = 0;
-    {
-        const std::string fragShaderSrc = loadFile("shaders/shader.frag");
-        const char* fragShaderSrcPtr = fragShaderSrc.c_str();
-
-        fragShader = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fragShader, 1, &fragShaderSrcPtr, NULL);
-        glCompileShader(fragShader);
-
-        int success = GL_FALSE;
-        char infoLog[512] = { 0 };
-        glGetShaderiv(fragShader, GL_COMPILE_STATUS, &success);
-        if (success == GL_FALSE) {
-            glGetShaderInfoLog(fragShader, sizeof(infoLog), NULL, infoLog);
-            SPDLOG_ERROR("Frag Shader compilation: {}", infoLog);
-        }
-    }
-
-    uint32_t fragShader2 = 0;
-    {
-        const std::string fragShader2Src = loadFile("shaders/shader2.frag");
-        const char* fragShader2SrcPtr = fragShader2Src.c_str();
-
-        fragShader2 = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fragShader2, 1, &fragShader2SrcPtr, NULL);
-        glCompileShader(fragShader2);
-
-        int success = GL_FALSE;
-        char infoLog[512] = { 0 };
-        glGetShaderiv(fragShader2, GL_COMPILE_STATUS, &success);
-        if (success == GL_FALSE) {
-            glGetShaderInfoLog(fragShader2, sizeof(infoLog), NULL, infoLog);
-            SPDLOG_ERROR("Frag Shader compilation: {}", infoLog);
-        }
-    }
-
-    uint32_t shaderProgram = 0;
-    uint32_t shaderProgram2 = 0;
-    {
-        shaderProgram = glCreateProgram();
-        glAttachShader(shaderProgram, vertexShader);
-        glAttachShader(shaderProgram, fragShader);
-        glLinkProgram(shaderProgram);
-
-        shaderProgram2 = glCreateProgram();
-        glAttachShader(shaderProgram2, vertexShader);
-        glAttachShader(shaderProgram2, fragShader2);
-        glLinkProgram(shaderProgram2);
-
-        DEFER({
-            glDeleteShader(vertexShader);
-            glDeleteShader(fragShader);
-            glDeleteShader(fragShader2);
-        });
-
-        int success = GL_FALSE;
-        char infoLog[512] = { 0 };
-        glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-        if (success == GL_FALSE) {
-            glGetProgramInfoLog(shaderProgram, sizeof(infoLog), NULL, infoLog);
-            SPDLOG_ERROR("Shader linking: {}", infoLog);
-        }
-
-        glGetProgramiv(shaderProgram2, GL_LINK_STATUS, &success);
-        if (success == GL_FALSE) {
-            glGetProgramInfoLog(shaderProgram2, sizeof(infoLog), NULL, infoLog);
-            SPDLOG_ERROR("Shader2 linking: {}", infoLog);
-        }
-    }
-    DEFER({
-        glDeleteProgram(shaderProgram);
-        glDeleteProgram(shaderProgram2);
-    });
+    Shader shader("shaders/shader.vert", "shaders/shader.frag");
+    DEFER(glDeleteProgram(shader.ID));
 
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
@@ -183,13 +89,9 @@ int main()
         // render
         {
             float timeValue = (float)glfwGetTime();
-            int timeValueLoc = glGetUniformLocation(shaderProgram, "timeValue");
 
-            glUseProgram(shaderProgram);
-            if (timeValueLoc == -1) {
-                SPDLOG_ERROR("Could not find timeValue uniform location");
-            }
-            glUniform1f(timeValueLoc, timeValue);
+            shader.useProgram();
+            shader.setUniformFloat("timeValue", timeValue);
 
             glBindVertexArray(vertexArrayObj);
             glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -215,16 +117,4 @@ void processInput(GLFWwindow* window)
         SPDLOG_DEBUG("Pressed Esc Key");
         glfwSetWindowShouldClose(window, true);
     }
-}
-
-std::string loadFile(const std::filesystem::path& path)
-{
-    std::ifstream file(path, std::ios::binary);
-    if (!file) {
-        return "";
-    }
-
-    std::string data(std::filesystem::file_size(path), '\0');
-    file.read(data.data(), data.size());
-    return data;
 }
