@@ -51,41 +51,35 @@ int main()
 
     SPDLOG_INFO("OpenGL {}", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
 
-    uint32_t vertexBufferObj[2] = { 0 };
-    uint32_t vertexArrayObj[2] = { 0 };
+    uint32_t vertexBufferObj = 0;
+    uint32_t vertexArrayObj = 0;
     {
         // clang-format off
-        float vertices[][3*3] ={
-            {
-                0.1f, 0.0f, 0.0f,
-                0.3f, 0.0f, 0.0f,
-                0.2f, 0.2f, 0.0f
-            },
-            {
-                -0.1f, 0.0f, 0.0f,
-                -0.3f, 0.0f, 0.0f,
-                -0.2f, -0.2f, 0.0f
-            }
+        float vertices[] = {
+            // positions          // colors
+             0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 0.0f,
+            -0.5f, -0.5f,  0.0f,  0.0f,  1.0f, 0.0f,
+             0.f,   0.5f,  0.0f,  0.0f,  0.0f, 1.0f,
         };
-
         // clang-format on
 
-        glGenBuffers(2, vertexBufferObj);
-        glGenVertexArrays(2, vertexArrayObj);
+        glGenBuffers(1, &vertexBufferObj);
+        glGenVertexArrays(1, &vertexArrayObj);
 
-        for (int i = 0; i < 2; i++) {
-            glBindVertexArray(vertexArrayObj[i]);
+        glBindVertexArray(vertexArrayObj);
 
-            glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObj[i]);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[i]), vertices[i], GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObj);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-        }
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
     }
     DEFER({
-        glDeleteBuffers(2, vertexBufferObj);
-        glDeleteVertexArrays(2, vertexArrayObj);
+        glDeleteBuffers(1, &vertexBufferObj);
+        glDeleteVertexArrays(1, &vertexArrayObj);
     });
 
     uint32_t vertexShader = 0;
@@ -186,13 +180,18 @@ int main()
         glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        // render
         {
-            glUseProgram(shaderProgram);
-            glBindVertexArray(vertexArrayObj[0]);
-            glDrawArrays(GL_TRIANGLES, 0, 3);
+            float timeValue = (float)glfwGetTime();
+            int timeValueLoc = glGetUniformLocation(shaderProgram, "timeValue");
 
-            glUseProgram(shaderProgram2);
-            glBindVertexArray(vertexArrayObj[1]);
+            glUseProgram(shaderProgram);
+            if (timeValueLoc == -1) {
+                SPDLOG_ERROR("Could not find timeValue uniform location");
+            }
+            glUniform1f(timeValueLoc, timeValue);
+
+            glBindVertexArray(vertexArrayObj);
             glDrawArrays(GL_TRIANGLES, 0, 3);
         }
 

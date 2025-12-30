@@ -1,7 +1,12 @@
 #version 330 core
 out vec4 FragColor;
 
+in vec3 vertColor;
+
+uniform float timeValue;
+
 void main()
 {
-    FragColor = vec4(1.0f, 0.5f, 0.8f, 1.0f);
+    float opacity = (sin(timeValue) / 2.0) + 0.5;
+    FragColor = vec4(vertColor * opacity, 1.0);
 }
