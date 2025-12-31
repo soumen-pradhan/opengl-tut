@@ -3,6 +3,9 @@
 #include <glad/glad.h> // glad has to be above glfw3 header
 
 #include <GLFW/glfw3.h>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
 #include <spdlog/spdlog.h>
 
 #include "defer.h"
@@ -25,14 +28,19 @@ int main()
     }
     DEFER(glfwTerminate());
 
+    const char* glslVersion = "#version 300 es";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     const int32_t SCR_WIDTH = 800;
     const int32_t SCR_HEIGHT = 600;
+    float mainScale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
 
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "OpenGL Hello World", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(
+        (int)(SCR_WIDTH * mainScale), (int)(SCR_HEIGHT * mainScale),
+        "OpenGL Hello World", nullptr, nullptr);
+
     if (!window) {
         SPDLOG_ERROR("Failed to create window");
         return 1;
@@ -41,6 +49,7 @@ int main()
     DEFER(glfwDestroyWindow(window));
 
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(1); // vsync
     glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -49,6 +58,34 @@ int main()
     }
 
     SPDLOG_INFO("Loaded OpenGL {}", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    {
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; // Enable Gamepad Controls
+
+        // Setup Dear ImGui style
+        ImGui::StyleColorsDark();
+        // ImGui::StyleColorsLight();
+
+        // Setup scaling
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.ScaleAllSizes(mainScale); // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+        style.FontScaleDpi = mainScale; // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
+
+        // Setup Platform/Renderer backends
+        ImGui_ImplGlfw_InitForOpenGL(window, true);
+
+        ImGui_ImplOpenGL3_Init(glslVersion);
+    }
+    SPDLOG_DEBUG("Created ImGui context");
+    DEFER({
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+    });
 
     uint32_t vertexBufferObj = 0;
     uint32_t vertexArrayObj = 0;
@@ -146,30 +183,90 @@ int main()
     SPDLOG_DEBUG("Created Texture1");
     DEFER(glDeleteTextures(1, &texture1));
 
+    bool showDemoWindow = true;
+    bool showAnotherWindow = false;
+    ImVec4 clearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
     while (!glfwWindowShouldClose(window)) {
-        processInput(window);
+        glfwPollEvents();
 
-        glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        // Start the Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
-        // render
-        {
-            shader.useProgram();
-
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texture);
-            shader.setUniformInt("texture0", 0);
-
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, texture1);
-            shader.setUniformInt("texture1", 1);
-
-            glBindVertexArray(vertexArrayObj);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+        if (showDemoWindow) {
+            ImGui::ShowDemoWindow(&showDemoWindow);
         }
 
+        {
+
+            static float f = 0.0f;
+            static int counter = 0;
+
+            ImGui::Begin("Hello, world!"); // Create a window called "Hello, world!" and append into it.
+
+            ImGui::Text("This is some useful text."); // Display some text (you can use a format strings too)
+            ImGui::Checkbox("Demo Window", &showDemoWindow); // Edit bools storing our window open/close state
+            ImGui::Checkbox("Another Window", &showDemoWindow);
+
+            ImGui::SliderFloat("float", &f, 0.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f
+            ImGui::ColorEdit3("clear color", (float*)&clearColor); // Edit 3 floats representing a color
+
+            // Buttons return true when clicked (most widgets return true when edited/activated)
+            if (ImGui::Button("Button")) {
+                counter++;
+            }
+            ImGui::SameLine();
+            ImGui::Text("counter = %d", counter);
+
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+            ImGui::End();
+        }
+
+        if (showAnotherWindow) {
+
+            ImGui::Begin("Another Window", &showAnotherWindow); // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+            ImGui::Text("Hello from another window!");
+            if (ImGui::Button("Close Me")) {
+                showAnotherWindow = false;
+            }
+            ImGui::End();
+        }
+
+        // Rendering
+        ImGui::Render();
+        int display_w, display_h;
+        glfwGetFramebufferSize(window, &display_w, &display_h);
+        glViewport(0, 0, display_w, display_h);
+        glClearColor(clearColor.x * clearColor.w, clearColor.y * clearColor.w, clearColor.z * clearColor.w, clearColor.w);
+        glClear(GL_COLOR_BUFFER_BIT);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(window);
-        glfwPollEvents();
+
+        // processInput(window);
+
+        // glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
+        // glClear(GL_COLOR_BUFFER_BIT);
+
+        // // render
+        // {
+        //     shader.useProgram();
+
+        //     glActiveTexture(GL_TEXTURE0);
+        //     glBindTexture(GL_TEXTURE_2D, texture);
+        //     shader.setUniformInt("texture0", 0);
+
+        //     glActiveTexture(GL_TEXTURE1);
+        //     glBindTexture(GL_TEXTURE_2D, texture1);
+        //     shader.setUniformInt("texture1", 1);
+
+        //     glBindVertexArray(vertexArrayObj);
+        //     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+        // }
+
+        // glfwSwapBuffers(window);
     }
 
     return 0;

@@ -1,10 +1,17 @@
 cmake_minimum_required(VERSION 4.1.0)
 project(opengl-tut VERSION 0.1.0 LANGUAGES C CXX)
 
+find_package(OpenGL REQUIRED)
+
 add_subdirectory(vendor/spdlog)
+
+option(GLFW_BUILD_EXAMPLES "Build the GLFW example programs" OFF)
+option(GLFW_BUILD_TESTS "Build the GLFW test programs" OFF)
+option(GLFW_BUILD_DOCS "Build the GLFW documentation" OFF)
+option(GLFW_INSTALL "Generate installation target" OFF)
 add_subdirectory(vendor/glfw)
 
-find_package(OpenGL REQUIRED)
+add_subdirectory(vendor)
 
 add_executable(${PROJECT_NAME} "")
 
@@ -50,6 +57,7 @@ target_link_libraries(${PROJECT_NAME}
         spdlog::spdlog
         glfw
         OpenGL::GL
+        imgui::imgui
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE
