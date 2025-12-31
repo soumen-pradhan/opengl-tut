@@ -100,6 +100,8 @@ int main()
     SPDLOG_DEBUG("Created Shader Program");
     DEFER(glDeleteProgram(shader.ID));
 
+    stbi_set_flip_vertically_on_load(true);
+
     uint32_t texture = 0;
     {
         int width, height, nrChannels;
@@ -122,6 +124,28 @@ int main()
     SPDLOG_DEBUG("Created Texture");
     DEFER(glDeleteTextures(1, &texture));
 
+    uint32_t texture1 = 0;
+    {
+        int width, height, nrChannels;
+        const uint8_t* data = stbi_load("textures/Texturelabs_InkPaint_241M.png",
+            &width, &height, &nrChannels, 0);
+        DEFER(stbi_image_free((void*)data));
+
+        glGenTextures(1, &texture1);
+        glBindTexture(GL_TEXTURE_2D, texture1);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
+            GL_RGBA, GL_UNSIGNED_BYTE, (void*)data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    SPDLOG_DEBUG("Created Texture1");
+    DEFER(glDeleteTextures(1, &texture1));
+
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
 
@@ -131,7 +155,15 @@ int main()
         // render
         {
             shader.useProgram();
+
+            glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, texture);
+            shader.setUniformInt("texture0", 0);
+
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, texture1);
+            shader.setUniformInt("texture1", 1);
+
             glBindVertexArray(vertexArrayObj);
             glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
         }
