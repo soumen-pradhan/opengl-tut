@@ -127,7 +127,7 @@ int main()
     uint32_t texture1 = 0;
     {
         int width, height, nrChannels;
-        const uint8_t* data = stbi_load("textures/Texturelabs_InkPaint_241M.png",
+        const uint8_t* data = stbi_load("textures/awesomeface.png",
             &width, &height, &nrChannels, 0);
         DEFER(stbi_image_free((void*)data));
 
