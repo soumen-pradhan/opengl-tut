@@ -31,6 +31,14 @@ target_sources(${PROJECT_NAME}
         FILES
             vendor/glad/include/glad/glad.h
 
+
+    PUBLIC
+        FILE_SET stb_headers
+        TYPE HEADERS
+        BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/vendor/stb
+        FILES
+            vendor/stb/stb_image.h
+
     PRIVATE
         src/main.cpp
         src/shader.cpp
@@ -72,3 +80,17 @@ add_custom_target(copy_shaders ALL
 )
 
 add_dependencies(${PROJECT_NAME} copy_shaders)
+
+# Copy texture files
+file(GLOB_RECURSE TEXTURES
+    "${CMAKE_SOURCE_DIR}/src/textures/*"
+)
+
+add_custom_target(copy_textures ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/src/textures
+            $<TARGET_FILE_DIR:${PROJECT_NAME}>/textures
+    DEPENDS ${TEXTURES}
+)
+
+add_dependencies(${PROJECT_NAME} copy_textures)

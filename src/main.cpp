@@ -8,6 +8,9 @@
 #include "defer.h"
 #include "shader.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
 
@@ -34,6 +37,7 @@ int main()
         SPDLOG_ERROR("Failed to create window");
         return 1;
     }
+    SPDLOG_DEBUG("glfwCreateWindow");
     DEFER(glfwDestroyWindow(window));
 
     glfwMakeContextCurrent(window);
@@ -44,41 +48,79 @@ int main()
         return 1;
     }
 
-    SPDLOG_INFO("OpenGL {}", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+    SPDLOG_INFO("Loaded OpenGL {}", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
 
     uint32_t vertexBufferObj = 0;
     uint32_t vertexArrayObj = 0;
+    uint32_t elementBufferObj = 0;
     {
         // clang-format off
         float vertices[] = {
-            // positions          // colors
-             0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 0.0f,
-            -0.5f, -0.5f,  0.0f,  0.0f,  1.0f, 0.0f,
-             0.f,   0.5f,  0.0f,  0.0f,  0.0f, 1.0f,
+            // positions          // colors            // tex
+             0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f,  1.0f,  1.0f,
+             0.5f, -0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  1.0f,  0.0f,
+            -0.5f, -0.5f,  0.0f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,
+            -0.5f,  0.5f,  0.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f,
+        };
+
+        uint32_t indices[] = {
+            0, 1, 3,
+            1, 2, 3
         };
         // clang-format on
 
         glGenBuffers(1, &vertexBufferObj);
         glGenVertexArrays(1, &vertexArrayObj);
+        glGenBuffers(1, &elementBufferObj);
 
         glBindVertexArray(vertexArrayObj);
 
         glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObj);
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementBufferObj);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
 
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
+
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+        glEnableVertexAttribArray(2);
     }
+    SPDLOG_DEBUG("Created Vertice Buffer and Layout Objects");
     DEFER({
         glDeleteBuffers(1, &vertexBufferObj);
         glDeleteVertexArrays(1, &vertexArrayObj);
     });
 
     Shader shader("shaders/shader.vert", "shaders/shader.frag");
+    SPDLOG_DEBUG("Created Shader Program");
     DEFER(glDeleteProgram(shader.ID));
+
+    uint32_t texture = 0;
+    {
+        int width, height, nrChannels;
+        const uint8_t* data = stbi_load("textures/Texturelabs_Brick_159M.jpg",
+            &width, &height, &nrChannels, 0);
+        DEFER(stbi_image_free((void*)data));
+
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
+            GL_RGB, GL_UNSIGNED_BYTE, (void*)data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    SPDLOG_DEBUG("Created Texture");
+    DEFER(glDeleteTextures(1, &texture));
 
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
@@ -89,9 +131,9 @@ int main()
         // render
         {
             shader.useProgram();
-
+            glBindTexture(GL_TEXTURE_2D, texture);
             glBindVertexArray(vertexArrayObj);
-            glDrawArrays(GL_TRIANGLES, 0, 3);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
         }
 
         glfwSwapBuffers(window);
