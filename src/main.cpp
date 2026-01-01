@@ -16,6 +16,7 @@
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
+constexpr ImVec4 color(uint32_t hex);
 
 int main()
 {
@@ -33,8 +34,9 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    const int32_t SCR_WIDTH = 800;
-    const int32_t SCR_HEIGHT = 600;
+    constexpr int SCR_WIDTH = 1600;
+    constexpr float ASPECT_RATIO = 16.0f / 9.0f;
+    constexpr int SCR_HEIGHT = static_cast<int>(SCR_WIDTH / ASPECT_RATIO);
     float mainScale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
 
     GLFWwindow* window = glfwCreateWindow(
@@ -64,7 +66,7 @@ int main()
     ImGuiIO& io = ImGui::GetIO();
     {
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; // Enable Gamepad Controls
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable Docking
 
         // Setup Dear ImGui style
         ImGui::StyleColorsDark();
@@ -72,12 +74,11 @@ int main()
 
         // Setup scaling
         ImGuiStyle& style = ImGui::GetStyle();
-        style.ScaleAllSizes(mainScale); // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+        style.ScaleAllSizes(mainScale);
         style.FontScaleDpi = mainScale; // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
 
         // Setup Platform/Renderer backends
         ImGui_ImplGlfw_InitForOpenGL(window, true);
-
         ImGui_ImplOpenGL3_Init(glslVersion);
     }
     SPDLOG_DEBUG("Created ImGui context");
@@ -184,8 +185,9 @@ int main()
     DEFER(glDeleteTextures(1, &texture1));
 
     bool showDemoWindow = true;
-    bool showAnotherWindow = false;
-    ImVec4 clearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    ImVec4 clearColor = color(0x01090d);
+
+    float mixFactor = 0.5f;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -195,78 +197,54 @@ int main()
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        ImGuiDockNodeFlags flags = ImGuiDockNodeFlags_PassthruCentralNode;
+        ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), flags);
+
         if (showDemoWindow) {
             ImGui::ShowDemoWindow(&showDemoWindow);
         }
 
         {
+            ImGui::Begin("Uniforms");
 
-            static float f = 0.0f;
-            static int counter = 0;
+            ImGui::Checkbox("Demo Window", &showDemoWindow);
 
-            ImGui::Begin("Hello, world!"); // Create a window called "Hello, world!" and append into it.
+            ImGui::ColorEdit3("clear color", (float*)&clearColor);
+            ImGui::SliderFloat("Mix Factor", &mixFactor, 0.0f, 1.0f);
 
-            ImGui::Text("This is some useful text."); // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &showDemoWindow); // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &showDemoWindow);
-
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clearColor); // Edit 3 floats representing a color
-
-            // Buttons return true when clicked (most widgets return true when edited/activated)
-            if (ImGui::Button("Button")) {
-                counter++;
-            }
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+            ImGui::Text("Avg %.3f ms/frame | %.1f FPS", 1000.0f / io.Framerate, io.Framerate);
             ImGui::End();
         }
 
-        if (showAnotherWindow) {
-
-            ImGui::Begin("Another Window", &showAnotherWindow); // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me")) {
-                showAnotherWindow = false;
-            }
-            ImGui::End();
-        }
-
-        // Rendering
         ImGui::Render();
-        int display_w, display_h;
-        glfwGetFramebufferSize(window, &display_w, &display_h);
-        glViewport(0, 0, display_w, display_h);
+
         glClearColor(clearColor.x * clearColor.w, clearColor.y * clearColor.w, clearColor.z * clearColor.w, clearColor.w);
         glClear(GL_COLOR_BUFFER_BIT);
+
+        {
+            shader.useProgram();
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texture);
+            shader.setUniformInt("texture0", 0);
+
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, texture1);
+            shader.setUniformInt("texture1", 1);
+
+            shader.setUniformFloat("mixFactor", mixFactor);
+
+            glBindVertexArray(vertexArrayObj);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+        }
+
+        // int display_w, display_h;
+        // glfwGetFramebufferSize(window, &display_w, &display_h);
+        // glViewport(0, 0, display_w, display_h);
+
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
-
-        // processInput(window);
-
-        // glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
-        // glClear(GL_COLOR_BUFFER_BIT);
-
-        // // render
-        // {
-        //     shader.useProgram();
-
-        //     glActiveTexture(GL_TEXTURE0);
-        //     glBindTexture(GL_TEXTURE_2D, texture);
-        //     shader.setUniformInt("texture0", 0);
-
-        //     glActiveTexture(GL_TEXTURE1);
-        //     glBindTexture(GL_TEXTURE_2D, texture1);
-        //     shader.setUniformInt("texture1", 1);
-
-        //     glBindVertexArray(vertexArrayObj);
-        //     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
-        // }
-
-        // glfwSwapBuffers(window);
     }
 
     return 0;
@@ -285,4 +263,15 @@ void processInput(GLFWwindow* window)
         SPDLOG_DEBUG("Pressed Esc Key");
         glfwSetWindowShouldClose(window, true);
     }
+}
+
+constexpr ImVec4 color(uint32_t hex)
+{
+    const float inv255 = 1.0f / 255.0f;
+
+    return ImVec4(
+        ((hex >> 16) & 0xFF) * inv255,
+        ((hex >> 8) & 0xFF) * inv255,
+        (hex & 0xFF) * inv255,
+        1.0f);
 }
