@@ -5,7 +5,6 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -216,11 +215,9 @@ int main()
 
     float mixFactor = 0.5f;
 
-    glm::vec4 vec(1.0f, 0.0f, 0.0f, 1.0f);
     glm::mat4 trans(1.0f);
-    trans = glm::translate(trans, glm::vec3(1.0f, 1.0f, 0.0f));
-    vec = trans * vec;
-    SPDLOG_INFO("Transformed Vec: {}", vec);
+    trans = glm::rotate(trans, glm::radians(90.0f), glm::vec3(0.0, 0.0, 1.0));
+    trans = glm::scale(trans, glm::vec3(0.5, 0.5, 0.5));
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -266,6 +263,7 @@ int main()
             shader.setUniformInt("texture1", 1);
 
             shader.setUniformFloat("mixFactor", mixFactor);
+            shader.setUniformMatrix4f("transform", trans);
 
             glBindVertexArray(vertexArrayObj);
             glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);

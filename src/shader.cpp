@@ -1,5 +1,6 @@
 #include <fstream>
 
+#include <glm/gtc/type_ptr.hpp>
 #include <spdlog/spdlog.h>
 
 #include "defer.h"
@@ -80,29 +81,38 @@ void Shader::useProgram() const
     glUseProgram(this->ID);
 }
 
-void Shader::setUniformBool(const char* name, bool value) const
+void Shader::setUniformBool(const char* name, bool v) const
 {
     int loc = glGetUniformLocation(this->ID, name);
     if (loc == -1) {
         SPDLOG_WARN("Uniform {} not found", name);
     }
-    glUniform1i(loc, (int)value);
+    glUniform1i(loc, (int)v);
 }
 
-void Shader::setUniformInt(const char* name, int value) const
+void Shader::setUniformInt(const char* name, int v) const
 {
     int loc = glGetUniformLocation(this->ID, name);
     if (loc == -1) {
         SPDLOG_WARN("Uniform {} not found", name);
     }
-    glUniform1i(loc, value);
+    glUniform1i(loc, v);
 }
 
-void Shader::setUniformFloat(const char* name, float value) const
+void Shader::setUniformFloat(const char* name, float v) const
 {
     int loc = glGetUniformLocation(this->ID, name);
     if (loc == -1) {
         SPDLOG_WARN("Uniform {} not found", name);
     }
-    glUniform1f(loc, value);
+    glUniform1f(loc, v);
+}
+
+void Shader::setUniformMatrix4f(const char* name, glm::mat4 v) const
+{
+    int loc = glGetUniformLocation(this->ID, name);
+    if (loc == -1) {
+        SPDLOG_WARN("Uniform {} not found", name);
+    }
+    glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(v));
 }
