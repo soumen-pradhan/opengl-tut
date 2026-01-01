@@ -222,8 +222,13 @@ int main()
         float currentS = (float)glfwGetTime();
 
         glm::mat4 trans(1.0f);
+        trans = glm::translate(trans, glm::vec3(0.5f, -0.5f, 0.0f));
         trans = glm::rotate(trans, currentS / rotSpeed, glm::vec3(0.0f, 0.0f, 1.0f));
-        trans = glm::translate(trans, glm::vec3(0.2f, -0.2f, 0.0f));
+
+        glm::mat4 trans2(1.0f);
+        trans2 = glm::translate(trans2, glm::vec3(-0.5f, 0.5f, 0.0f));
+        float scale = std::abs(std::sin(currentS / rotSpeed));
+        trans2 = glm::scale(trans2, glm::vec3(scale, scale, 1.0f));
 
         // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
@@ -269,6 +274,10 @@ int main()
             shader.setUniformFloat("mixFactor", mixFactor);
             shader.setUniformMatrix4f("transform", trans);
 
+            glBindVertexArray(vertexArrayObj);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+
+            shader.setUniformMatrix4f("transform", trans2);
             glBindVertexArray(vertexArrayObj);
             glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
         }
