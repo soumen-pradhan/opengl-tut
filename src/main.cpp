@@ -214,13 +214,16 @@ int main()
     ImVec4 clearColor = color(0x01090d);
 
     float mixFactor = 0.5f;
-
-    glm::mat4 trans(1.0f);
-    trans = glm::rotate(trans, glm::radians(90.0f), glm::vec3(0.0, 0.0, 1.0));
-    trans = glm::scale(trans, glm::vec3(0.5, 0.5, 0.5));
+    float rotSpeed = 10.0f;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+
+        float currentS = (float)glfwGetTime();
+
+        glm::mat4 trans(1.0f);
+        trans = glm::rotate(trans, currentS / rotSpeed, glm::vec3(0.0f, 0.0f, 1.0f));
+        trans = glm::translate(trans, glm::vec3(0.2f, -0.2f, 0.0f));
 
         // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
@@ -241,6 +244,7 @@ int main()
 
             ImGui::ColorEdit3("clear color", (float*)&clearColor);
             ImGui::SliderFloat("Mix Factor", &mixFactor, 0.0f, 1.0f);
+            ImGui::SliderFloat("Rot Speed", &rotSpeed, 0.01f, 50.0f);
 
             ImGui::Text("Avg %.3f ms/frame | %.1f FPS", 1000.0f / io.Framerate, io.Framerate);
             ImGui::End();
