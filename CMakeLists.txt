@@ -11,6 +11,8 @@ option(GLFW_BUILD_DOCS "Build the GLFW documentation" OFF)
 option(GLFW_INSTALL "Generate installation target" OFF)
 add_subdirectory(vendor/glfw)
 
+add_subdirectory(vendor/glm)
+
 add_subdirectory(vendor)
 
 add_executable(${PROJECT_NAME} "")
@@ -58,6 +60,7 @@ target_link_libraries(${PROJECT_NAME}
         glfw
         OpenGL::GL
         imgui::imgui
+        glm::glm
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE

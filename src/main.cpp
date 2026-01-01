@@ -3,6 +3,9 @@
 #include <glad/glad.h> // glad has to be above glfw3 header
 
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -17,6 +20,30 @@
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
 constexpr ImVec4 color(uint32_t hex);
+
+template <glm::length_t L, typename T, glm::qualifier Q>
+struct fmt::formatter<glm::vec<L, T, Q>> {
+    constexpr auto parse(fmt::format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const glm::vec<L, T, Q>& v, FormatContext& ctx) const
+    {
+        auto out = ctx.out();
+        *out++ = '(';
+        for (glm::length_t i = 0; i < L; ++i) {
+            out = fmt::format_to(out, "{:.3f}", v[i]);
+            if (i + 1 < L) {
+                *out++ = ',';
+                *out++ = ' ';
+            }
+        }
+        *out++ = ')';
+        return out;
+    }
+};
 
 int main()
 {
@@ -188,6 +215,12 @@ int main()
     ImVec4 clearColor = color(0x01090d);
 
     float mixFactor = 0.5f;
+
+    glm::vec4 vec(1.0f, 0.0f, 0.0f, 1.0f);
+    glm::mat4 trans(1.0f);
+    trans = glm::translate(trans, glm::vec3(1.0f, 1.0f, 0.0f));
+    vec = trans * vec;
+    SPDLOG_INFO("Transformed Vec: {}", vec);
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
