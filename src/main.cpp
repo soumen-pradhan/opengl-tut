@@ -60,8 +60,8 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    constexpr int SCR_WIDTH = 1600;
-    constexpr float ASPECT_RATIO = 16.0f / 9.0f;
+    constexpr int SCR_WIDTH = 1200;
+    constexpr float ASPECT_RATIO = 4.0f / 3.0f;
     constexpr int SCR_HEIGHT = static_cast<int>(SCR_WIDTH / ASPECT_RATIO);
     float mainScale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
 
@@ -219,16 +219,19 @@ int main()
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
-        float currentS = (float)glfwGetTime();
+        int fbWidth, fbHeight;
+        glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
 
-        glm::mat4 trans(1.0f);
-        trans = glm::translate(trans, glm::vec3(0.5f, -0.5f, 0.0f));
-        trans = glm::rotate(trans, currentS / rotSpeed, glm::vec3(0.0f, 0.0f, 1.0f));
+        float aspect = (float)fbWidth / (float)fbHeight;
 
-        glm::mat4 trans2(1.0f);
-        trans2 = glm::translate(trans2, glm::vec3(-0.5f, 0.5f, 0.0f));
-        float scale = std::abs(std::sin(currentS / rotSpeed));
-        trans2 = glm::scale(trans2, glm::vec3(scale, scale, 1.0f));
+        glm::mat4 model(1.0f);
+        model = glm::rotate(model, glm::radians(-55.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
+        glm::mat4 view(1.0f);
+        view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
+
+        glm::mat4 projection(1.0f);
+        projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
 
         // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
@@ -272,12 +275,10 @@ int main()
             shader.setUniformInt("texture1", 1);
 
             shader.setUniformFloat("mixFactor", mixFactor);
-            shader.setUniformMatrix4f("transform", trans);
+            shader.setUniformMatrix4f("model", model);
+            shader.setUniformMatrix4f("view", view);
+            shader.setUniformMatrix4f("projection", projection);
 
-            glBindVertexArray(vertexArrayObj);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
-
-            shader.setUniformMatrix4f("transform", trans2);
             glBindVertexArray(vertexArrayObj);
             glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
         }
@@ -299,6 +300,7 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height)
     // make sure the viewport matches the new window dimensions; note that width and
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
+    SPDLOG_DEBUG("Window resized to {}x{}", width, height);
 }
 
 void processInput(GLFWwindow* window)
