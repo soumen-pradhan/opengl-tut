@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -245,7 +246,21 @@ int main()
     ImVec4 clearColor = color(0x01090d);
 
     float mixFactor = 0.5f;
-    float rotSpeed = 10.0f;
+    float fov = 45.0f;
+    glm::vec3 viewTrans(0.0f, 0.0f, -3.0f);
+
+    glm::vec3 cubePos[] = {
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(2.0f, 5.0f, -15.0f),
+        glm::vec3(-1.5f, -2.2f, -2.5f),
+        glm::vec3(-3.8f, -2.0f, -12.3f),
+        glm::vec3(2.4f, -0.4f, -3.5f),
+        glm::vec3(-1.7f, 3.0f, -7.5f),
+        glm::vec3(1.3f, -2.0f, -2.5f),
+        glm::vec3(1.5f, 2.0f, -2.5f),
+        glm::vec3(1.5f, 0.2f, -1.5f),
+        glm::vec3(-1.3f, 1.0f, -1.5f)
+    };
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -257,14 +272,11 @@ int main()
 
         float aspect = (float)fbWidth / (float)fbHeight;
 
-        glm::mat4 model(1.0f);
-        model = glm::rotate(model, currentSec * glm::radians(50.0f), glm::vec3(0.5f, 1.0f, 0.0f));
-
         glm::mat4 view(1.0f);
-        view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
+        view = glm::translate(view, viewTrans);
 
         glm::mat4 projection(1.0f);
-        projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+        projection = glm::perspective(glm::radians(fov), aspect, 0.1f, 100.0f);
 
         // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
@@ -283,9 +295,9 @@ int main()
 
             ImGui::Checkbox("Demo Window", &showDemoWindow);
 
-            ImGui::ColorEdit3("clear color", (float*)&clearColor);
             ImGui::SliderFloat("Mix Factor", &mixFactor, 0.0f, 1.0f);
-            ImGui::SliderFloat("Rot Speed", &rotSpeed, 0.01f, 50.0f);
+            ImGui::SliderFloat("FOV", &fov, 0.1f, 150.0f);
+            ImGui::SliderFloat3("View Trans", glm::value_ptr(viewTrans), 0.1f, 5.0f);
 
             ImGui::Text("Avg %.3f ms/frame | %.1f FPS", 1000.0f / io.Framerate, io.Framerate);
             ImGui::End();
@@ -296,7 +308,7 @@ int main()
         glClearColor(clearColor.x * clearColor.w, clearColor.y * clearColor.w, clearColor.z * clearColor.w, clearColor.w);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        {
+        for (int i = 0; i < sizeof(cubePos); i++) {
             shader.useProgram();
 
             glActiveTexture(GL_TEXTURE0);
@@ -306,6 +318,12 @@ int main()
             glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_2D, texture1);
             shader.setUniformInt("texture1", 1);
+
+            glm::mat4 model(1.0f);
+            model = glm::scale(model, glm::vec3(0.3f));
+            model = glm::translate(model, cubePos[i]);
+            float angle = (i % 3 == 0 ? currentSec : 1.0f) * glm::radians(20.0f * i);
+            model = glm::rotate(model, angle, glm::vec3(0.5f, 1.0f, 0.0f));
 
             shader.setUniformFloat("mixFactor", mixFactor);
             shader.setUniformMatrix4f("model", model);
