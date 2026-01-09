@@ -17,8 +17,13 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+struct Camera {
+    glm::vec3 pos, front, up;
+    float speed, fov;
+};
+
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
-void processInput(GLFWwindow* window);
+void processInput(GLFWwindow* window, float deltaSec, Camera& camera);
 constexpr ImVec4 color(uint32_t hex);
 
 template <glm::length_t L, typename T, glm::qualifier Q>
@@ -44,6 +49,24 @@ struct fmt::formatter<glm::vec<L, T, Q>> {
         return out;
     }
 };
+
+struct AppCtx {
+    Camera camera;
+    Shader shader;
+
+    uint32_t texture[2];
+    uint32_t vertexArrayObj;
+
+    float deltaSec, prevSec;
+    float mixFactor;
+    ImVec4 clearColor;
+    glm::vec3* cubePos;
+    int cubePosLen;
+
+    bool showDemoWindow;
+};
+
+void render(GLFWwindow* window, AppCtx& ctx);
 
 int main()
 {
@@ -242,13 +265,6 @@ int main()
     SPDLOG_DEBUG("Created Texture1");
     DEFER(glDeleteTextures(1, &texture1));
 
-    bool showDemoWindow = true;
-    ImVec4 clearColor = color(0x01090d);
-
-    float mixFactor = 0.5f;
-    float fov = 45.0f;
-    glm::vec3 viewTrans(0.0f, 0.0f, -3.0f);
-
     glm::vec3 cubePos[] = {
         glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec3(2.0f, 5.0f, -15.0f),
@@ -262,103 +278,152 @@ int main()
         glm::vec3(-1.3f, 1.0f, -1.5f)
     };
 
+    AppCtx ctx = {
+        .camera = {
+            .pos = glm::vec3(0.0f, 0.0f, 3.0f),
+            .front = glm::vec3(0.0f, 0.0f, -1.0f),
+            .up = glm::vec3(0.0f, 1.0f, 0.0f),
+            .speed = 0.05f,
+            .fov = 45.0f },
+        .shader = shader,
+
+        .texture = { texture, texture1 },
+        .vertexArrayObj = vertexArrayObj,
+
+        .deltaSec = 0,
+        .prevSec = 0,
+        .mixFactor = 0.5f,
+        .clearColor = color(0x01090d),
+        .cubePos = cubePos,
+        .cubePosLen = sizeof(cubePos) / sizeof(cubePos[0]),
+        .showDemoWindow = true
+    };
+    glfwSetWindowUserPointer(window, &ctx);
+
+    SPDLOG_INFO("Enetring Render Loop");
     while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
-
-        float currentSec = (float)glfwGetTime();
-
-        int fbWidth, fbHeight;
-        glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
-
-        float aspect = (float)fbWidth / (float)fbHeight;
-
-        glm::mat4 view(1.0f);
-        view = glm::translate(view, viewTrans);
-
-        glm::mat4 projection(1.0f);
-        projection = glm::perspective(glm::radians(fov), aspect, 0.1f, 100.0f);
-
-        // Start the Dear ImGui frame
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
-        ImGuiDockNodeFlags flags = ImGuiDockNodeFlags_PassthruCentralNode;
-        ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), flags);
-
-        if (showDemoWindow) {
-            ImGui::ShowDemoWindow(&showDemoWindow);
-        }
-
-        {
-            ImGui::Begin("Uniforms");
-
-            ImGui::Checkbox("Demo Window", &showDemoWindow);
-
-            ImGui::SliderFloat("Mix Factor", &mixFactor, 0.0f, 1.0f);
-            ImGui::SliderFloat("FOV", &fov, 0.1f, 150.0f);
-            ImGui::SliderFloat3("View Trans", glm::value_ptr(viewTrans), 0.1f, 5.0f);
-
-            ImGui::Text("Avg %.3f ms/frame | %.1f FPS", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
-        }
-
-        ImGui::Render();
-
-        glClearColor(clearColor.x * clearColor.w, clearColor.y * clearColor.w, clearColor.z * clearColor.w, clearColor.w);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        for (int i = 0; i < sizeof(cubePos); i++) {
-            shader.useProgram();
-
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texture);
-            shader.setUniformInt("texture0", 0);
-
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, texture1);
-            shader.setUniformInt("texture1", 1);
-
-            glm::mat4 model(1.0f);
-            model = glm::scale(model, glm::vec3(0.3f));
-            model = glm::translate(model, cubePos[i]);
-            float angle = (i % 3 == 0 ? currentSec : 1.0f) * glm::radians(20.0f * i);
-            model = glm::rotate(model, angle, glm::vec3(0.5f, 1.0f, 0.0f));
-
-            shader.setUniformFloat("mixFactor", mixFactor);
-            shader.setUniformMatrix4f("model", model);
-            shader.setUniformMatrix4f("view", view);
-            shader.setUniformMatrix4f("projection", projection);
-
-            glBindVertexArray(vertexArrayObj);
-            glDrawArrays(GL_TRIANGLES, 0, 36);
-        }
-
-        // int display_w, display_h;
-        // glfwGetFramebufferSize(window, &display_w, &display_h);
-        // glViewport(0, 0, display_w, display_h);
-
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        glfwSwapBuffers(window);
+        render(window, ctx);
     }
 
     return 0;
 }
 
+void render(GLFWwindow* window, AppCtx& ctx)
+{
+    float currentSec = (float)glfwGetTime();
+    ctx.deltaSec = currentSec - ctx.prevSec;
+    ctx.prevSec = currentSec;
+
+    glfwPollEvents();
+    processInput(window, ctx.deltaSec, ctx.camera);
+
+    int fbWidth, fbHeight;
+    glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
+
+    float aspect = (float)fbWidth / (float)fbHeight;
+
+    glm::mat4 view = glm::lookAt(ctx.camera.pos, ctx.camera.pos + ctx.camera.front, ctx.camera.up);
+
+    glm::mat4 projection(1.0f);
+    projection = glm::perspective(glm::radians(ctx.camera.fov), aspect, 0.1f, 100.0f);
+
+    // Start the Dear ImGui frame
+    ImGuiIO& io = ImGui::GetIO();
+
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    ImGuiDockNodeFlags flags = ImGuiDockNodeFlags_PassthruCentralNode;
+    ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), flags);
+
+    if (ctx.showDemoWindow) {
+        ImGui::ShowDemoWindow(&ctx.showDemoWindow);
+    }
+
+    {
+        ImGui::Begin("Uniforms");
+
+        ImGui::Checkbox("Demo Window", &ctx.showDemoWindow);
+
+        ImGui::SliderFloat("Mix Factor", &ctx.mixFactor, 0.0f, 1.0f);
+        ImGui::SliderFloat("FOV", &ctx.camera.fov, 0.1f, 150.0f);
+        ImGui::SliderFloat("Camera Speed", &ctx.camera.speed, 0.1f, 150.0f);
+
+        ImGui::Text("Avg %.3f ms/frame | %.1f FPS", 1000.0f / io.Framerate, io.Framerate);
+        ImGui::End();
+    }
+
+    ImGui::Render();
+
+    glClearColor(ctx.clearColor.x * ctx.clearColor.w, ctx.clearColor.y * ctx.clearColor.w, ctx.clearColor.z * ctx.clearColor.w, ctx.clearColor.w);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    ctx.shader.useProgram();
+    ctx.shader.setUniformInt("texture0", 0);
+    ctx.shader.setUniformInt("texture1", 1);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, ctx.texture[0]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, ctx.texture[1]);
+    glBindVertexArray(ctx.vertexArrayObj);
+
+    ctx.shader.setUniformFloat("mixFactor", ctx.mixFactor);
+    ctx.shader.setUniformMatrix4f("view", view);
+    ctx.shader.setUniformMatrix4f("projection", projection);
+
+    for (int i = 0; i < ctx.cubePosLen; i++) {
+        glm::mat4 model(1.0f);
+        model = glm::scale(model, glm::vec3(0.3f));
+        model = glm::translate(model, ctx.cubePos[i]);
+        float angle = (i % 3 == 0 ? currentSec : 1.0f) * glm::radians(20.0f * i);
+        model = glm::rotate(model, angle, glm::vec3(0.5f, 1.0f, 0.0f));
+
+        ctx.shader.setUniformMatrix4f("model", model);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+    glfwSwapBuffers(window);
+}
+
 void framebufferSizeCallback(GLFWwindow* window, int width, int height)
 {
+    (void)window;
     // make sure the viewport matches the new window dimensions; note that width and
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
     SPDLOG_DEBUG("Window resized to {}x{}", width, height);
+
+    // AppCtx* ctx = (AppCtx*)glfwGetWindowUserPointer(window);
+    // render(window, *ctx);
 }
 
-void processInput(GLFWwindow* window)
+void processInput(GLFWwindow* window, float deltaSec, Camera& camera)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         SPDLOG_DEBUG("Pressed Esc Key");
         glfwSetWindowShouldClose(window, true);
+    }
+
+    float cameraSpeed = camera.speed * deltaSec;
+
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+        camera.pos += cameraSpeed * camera.front;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        camera.pos -= cameraSpeed * camera.front;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+        camera.pos -= glm::normalize(glm::cross(camera.front, camera.up)) * cameraSpeed;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        camera.pos += glm::normalize(glm::cross(camera.front, camera.up)) * cameraSpeed;
     }
 }
 
