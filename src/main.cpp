@@ -68,7 +68,7 @@ struct AppCtx {
     int cubePosLen;
 
     bool showDemoWindow;
-    bool cursorCaptured;
+    bool cursorReleased;
     bool firstMouse;
 };
 
@@ -291,7 +291,7 @@ int main()
             .pos = glm::vec3(0.0f, 0.0f, 3.0f),
             .front = glm::vec3(0.0f, 0.0f, -1.0f),
             .up = glm::vec3(0.0f, 1.0f, 0.0f),
-            .speed = 0.1f,
+            .speed = 3.0f,
             .fov = 45.0f,
             .lastX = SCR_WIDTH / 2,
             .lastY = SCR_HEIGHT / 2,
@@ -310,7 +310,7 @@ int main()
         .cubePos = cubePos,
         .cubePosLen = sizeof(cubePos) / sizeof(cubePos[0]),
         .showDemoWindow = true,
-        .cursorCaptured = true,
+        .cursorReleased = false,
         .firstMouse = true
     };
     glfwSetWindowUserPointer(window, &ctx);
@@ -423,6 +423,11 @@ void cursorCallback(GLFWwindow* window, double xposd, double yposd)
 {
     AppCtx& ctx = *(AppCtx*)glfwGetWindowUserPointer(window);
 
+    bool wantCursorReleased = glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS;
+    if (wantCursorReleased) {
+        return;
+    }
+
     float xpos = (float)xposd;
     float ypos = (float)yposd;
 
@@ -458,6 +463,21 @@ void processInput(GLFWwindow* window)
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         SPDLOG_DEBUG("Pressed Esc Key");
         glfwSetWindowShouldClose(window, true);
+    }
+
+    bool wantCursorReleased = glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS;
+
+    if (wantCursorReleased != ctx.cursorReleased) {
+        glfwSetInputMode(
+            window,
+            GLFW_CURSOR,
+            wantCursorReleased ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+
+        if (wantCursorReleased) {
+            ImGui::SetWindowFocus(nullptr);
+        }
+
+        ctx.cursorReleased = wantCursorReleased;
     }
 
     float cameraSpeed = ctx.camera.speed * ctx.deltaSec;
