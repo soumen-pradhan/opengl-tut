@@ -27,6 +27,7 @@ struct Camera {
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 void cursorCallback(GLFWwindow* window, double xpos, double ypos);
+void scrollCallback(GLFWwindow* window, double xpos, double ypos);
 void processInput(GLFWwindow* window);
 constexpr ImVec4 color(uint32_t hex);
 
@@ -111,6 +112,7 @@ int main()
     glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
     glfwSetCursorPosCallback(window, cursorCallback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetScrollCallback(window, scrollCallback);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         SPDLOG_ERROR("Failed to init GLAD");
@@ -364,7 +366,7 @@ void render(GLFWwindow* window, AppCtx& ctx)
         ImGui::SliderFloat("Mix Factor", &ctx.mixFactor, 0.0f, 1.0f);
         ImGui::SliderFloat("FOV", &ctx.camera.fov, 0.1f, 150.0f);
         ImGui::SliderFloat("Camera Speed", &ctx.camera.speed, 0.1f, 150.0f);
-        ImGui::SliderFloat("Mouse Sensitivity", &ctx.camera.mouseSensitivity, 0.01f, 100.0f);
+        ImGui::SliderFloat("Mouse Sensitivity", &ctx.camera.mouseSensitivity, 0.01f, 0.1f);
 
         ImGui::Text("Mouse Cursor. x: %.2f, y: %.2f", ctx.camera.lastX, ctx.camera.lastY);
         ImGui::Text("Camera Front. (%0.2f, %0.2f, %0.2f)", ctx.camera.front.x, ctx.camera.front.y, ctx.camera.front.z);
@@ -454,6 +456,15 @@ void cursorCallback(GLFWwindow* window, double xposd, double yposd)
 
     glm::vec3 dir(cosYaw * cosPitch, sinPitch, sinYaw * cosPitch);
     ctx.camera.front = glm::normalize(dir);
+}
+
+void scrollCallback(GLFWwindow* window, double xoffsetd, double yoffsetd)
+{
+    AppCtx& ctx = *(AppCtx*)glfwGetWindowUserPointer(window);
+
+    (void)xoffsetd;
+    float yoffset = (float)yoffsetd;
+    ctx.camera.fov = std::clamp(ctx.camera.fov - yoffset, 1.0f, 80.0f);
 }
 
 void processInput(GLFWwindow* window)
