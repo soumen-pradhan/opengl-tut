@@ -20,10 +20,14 @@
 struct Camera {
     glm::vec3 pos, front, up;
     float speed, fov;
+    float lastX, lastY;
+    float mouseSensitivity;
+    float yaw, pitch;
 };
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
-void processInput(GLFWwindow* window, float deltaSec, Camera& camera);
+void cursorCallback(GLFWwindow* window, double xpos, double ypos);
+void processInput(GLFWwindow* window);
 constexpr ImVec4 color(uint32_t hex);
 
 template <glm::length_t L, typename T, glm::qualifier Q>
@@ -64,6 +68,8 @@ struct AppCtx {
     int cubePosLen;
 
     bool showDemoWindow;
+    bool cursorCaptured;
+    bool firstMouse;
 };
 
 void render(GLFWwindow* window, AppCtx& ctx);
@@ -103,6 +109,8 @@ int main()
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // vsync
     glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+    glfwSetCursorPosCallback(window, cursorCallback);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         SPDLOG_ERROR("Failed to init GLAD");
@@ -283,8 +291,13 @@ int main()
             .pos = glm::vec3(0.0f, 0.0f, 3.0f),
             .front = glm::vec3(0.0f, 0.0f, -1.0f),
             .up = glm::vec3(0.0f, 1.0f, 0.0f),
-            .speed = 0.05f,
-            .fov = 45.0f },
+            .speed = 0.1f,
+            .fov = 45.0f,
+            .lastX = SCR_WIDTH / 2,
+            .lastY = SCR_HEIGHT / 2,
+            .mouseSensitivity = 0.01f,
+            .yaw = -90.0f, // 0 means +ve X axis, and as yaw increases, the turn is anticlockwise
+            .pitch = 0.0f },
         .shader = shader,
 
         .texture = { texture, texture1 },
@@ -296,7 +309,9 @@ int main()
         .clearColor = color(0x01090d),
         .cubePos = cubePos,
         .cubePosLen = sizeof(cubePos) / sizeof(cubePos[0]),
-        .showDemoWindow = true
+        .showDemoWindow = true,
+        .cursorCaptured = true,
+        .firstMouse = true
     };
     glfwSetWindowUserPointer(window, &ctx);
 
@@ -314,8 +329,18 @@ void render(GLFWwindow* window, AppCtx& ctx)
     ctx.deltaSec = currentSec - ctx.prevSec;
     ctx.prevSec = currentSec;
 
+    // Start the Dear ImGui frame
+    ImGuiIO& io = ImGui::GetIO();
+
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    ImGuiDockNodeFlags flags = ImGuiDockNodeFlags_PassthruCentralNode;
+    ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), flags);
+
     glfwPollEvents();
-    processInput(window, ctx.deltaSec, ctx.camera);
+    processInput(window);
 
     int fbWidth, fbHeight;
     glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
@@ -326,16 +351,6 @@ void render(GLFWwindow* window, AppCtx& ctx)
 
     glm::mat4 projection(1.0f);
     projection = glm::perspective(glm::radians(ctx.camera.fov), aspect, 0.1f, 100.0f);
-
-    // Start the Dear ImGui frame
-    ImGuiIO& io = ImGui::GetIO();
-
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-    ImGuiDockNodeFlags flags = ImGuiDockNodeFlags_PassthruCentralNode;
-    ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), flags);
 
     if (ctx.showDemoWindow) {
         ImGui::ShowDemoWindow(&ctx.showDemoWindow);
@@ -349,7 +364,10 @@ void render(GLFWwindow* window, AppCtx& ctx)
         ImGui::SliderFloat("Mix Factor", &ctx.mixFactor, 0.0f, 1.0f);
         ImGui::SliderFloat("FOV", &ctx.camera.fov, 0.1f, 150.0f);
         ImGui::SliderFloat("Camera Speed", &ctx.camera.speed, 0.1f, 150.0f);
+        ImGui::SliderFloat("Mouse Sensitivity", &ctx.camera.mouseSensitivity, 0.01f, 100.0f);
 
+        ImGui::Text("Mouse Cursor. x: %.2f, y: %.2f", ctx.camera.lastX, ctx.camera.lastY);
+        ImGui::Text("Camera Front. (%0.2f, %0.2f, %0.2f)", ctx.camera.front.x, ctx.camera.front.y, ctx.camera.front.z);
         ImGui::Text("Avg %.3f ms/frame | %.1f FPS", 1000.0f / io.Framerate, io.Framerate);
         ImGui::End();
     }
@@ -401,29 +419,63 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height)
     // render(window, *ctx);
 }
 
-void processInput(GLFWwindow* window, float deltaSec, Camera& camera)
+void cursorCallback(GLFWwindow* window, double xposd, double yposd)
 {
+    AppCtx& ctx = *(AppCtx*)glfwGetWindowUserPointer(window);
+
+    float xpos = (float)xposd;
+    float ypos = (float)yposd;
+
+    if (ctx.firstMouse) {
+        SPDLOG_DEBUG("First Mouse event {}x{}", xpos, ypos);
+        ctx.camera.lastX = xpos;
+        ctx.camera.lastY = ypos;
+        ctx.firstMouse = false;
+    }
+
+    float xoffset = (xpos - ctx.camera.lastX) * ctx.camera.mouseSensitivity;
+    float yoffset = (ctx.camera.lastY - ypos) * ctx.camera.mouseSensitivity;
+
+    ctx.camera.lastX = xpos;
+    ctx.camera.lastY = ypos;
+
+    ctx.camera.yaw += xoffset;
+    ctx.camera.pitch = std::clamp(ctx.camera.pitch + yoffset, -89.0f, 89.0f);
+
+    float cosYaw = std::cos(glm::radians(ctx.camera.yaw));
+    float sinYaw = std::sin(glm::radians(ctx.camera.yaw));
+    float cosPitch = std::cos(glm::radians(ctx.camera.pitch));
+    float sinPitch = std::sin(glm::radians(ctx.camera.pitch));
+
+    glm::vec3 dir(cosYaw * cosPitch, sinPitch, sinYaw * cosPitch);
+    ctx.camera.front = glm::normalize(dir);
+}
+
+void processInput(GLFWwindow* window)
+{
+    AppCtx& ctx = *(AppCtx*)glfwGetWindowUserPointer(window);
+
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         SPDLOG_DEBUG("Pressed Esc Key");
         glfwSetWindowShouldClose(window, true);
     }
 
-    float cameraSpeed = camera.speed * deltaSec;
+    float cameraSpeed = ctx.camera.speed * ctx.deltaSec;
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        camera.pos += cameraSpeed * camera.front;
+        ctx.camera.pos += cameraSpeed * ctx.camera.front;
     }
 
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-        camera.pos -= cameraSpeed * camera.front;
+        ctx.camera.pos -= cameraSpeed * ctx.camera.front;
     }
 
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        camera.pos -= glm::normalize(glm::cross(camera.front, camera.up)) * cameraSpeed;
+        ctx.camera.pos -= glm::normalize(glm::cross(ctx.camera.front, ctx.camera.up)) * cameraSpeed;
     }
 
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        camera.pos += glm::normalize(glm::cross(camera.front, camera.up)) * cameraSpeed;
+        ctx.camera.pos += glm::normalize(glm::cross(ctx.camera.front, ctx.camera.up)) * cameraSpeed;
     }
 }
 
