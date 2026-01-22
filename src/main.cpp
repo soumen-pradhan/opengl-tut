@@ -11,19 +11,12 @@
 #include <imgui_impl_opengl3.h>
 #include <spdlog/spdlog.h>
 
+#include "camera.h"
 #include "defer.h"
 #include "shader.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-
-struct Camera {
-    glm::vec3 pos, front, up;
-    float speed, fov;
-    float lastX, lastY;
-    float mouseSensitivity;
-    float yaw, pitch;
-};
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 void cursorCallback(GLFWwindow* window, double xpos, double ypos);

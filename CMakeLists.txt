@@ -32,6 +32,7 @@ target_sources(${PROJECT_NAME}
         FILES
             src/include/defer.h
             src/include/shader.h
+            src/include/camera.h
 
     PUBLIC
         FILE_SET gladHeaders
@@ -51,6 +52,7 @@ target_sources(${PROJECT_NAME}
     PRIVATE
         src/main.cpp
         src/shader.cpp
+        src/camera.cpp
         vendor/glad/src/glad.c
 )
 
