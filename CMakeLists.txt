@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 4.1.0)
 project(opengl-tut VERSION 0.1.0 LANGUAGES C CXX)
 
 find_package(OpenGL REQUIRED)
+if(UNIX AND NOT APPLE)
+    find_package(X11 REQUIRED)
+endif()
 
 add_subdirectory(vendor/spdlog)
 
@@ -63,6 +66,7 @@ target_link_libraries(${PROJECT_NAME}
         OpenGL::GL
         imgui::imgui
         glm::glm
+        $<$<AND:$<PLATFORM_ID:Linux>,$<TARGET_EXISTS:X11::X11>>:X11::X11>
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE
