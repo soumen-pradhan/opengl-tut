@@ -50,16 +50,15 @@ struct fmt::formatter<glm::vec<L, T, Q>> {
 
 struct AppCtx {
     Camera camera;
-    Shader shader;
+    Shader lightingShader;
+    Shader lightingCubeShader;
+    glm::vec3 lightSourcePos;
 
-    uint32_t texture[2];
-    uint32_t vertexArrayObj;
+    uint32_t cubeVertexArrayObj;
+    uint32_t lightSourceCubeVertexArrayObj;
 
     float deltaSec, prevSec;
-    float mixFactor;
     ImVec4 clearColor;
-    glm::vec3* cubePos;
-    int cubePosLen;
 
     bool showDemoWindow;
     bool cursorReleased;
@@ -143,9 +142,23 @@ int main()
 
     glEnable(GL_DEPTH_TEST);
 
+    std::optional<Shader> lightingShader = Shader::init("shaders/1-colors.vs", "shaders/1-colors.fs");
+    if (!lightingShader) {
+        return 1;
+    }
+    std::optional<Shader> lightingCubeShader = Shader::init("shaders/1-light-cube.vs", "shaders/1-light-cube.fs");
+    if (!lightingCubeShader) {
+        return 1;
+    }
+
+    DEFER({
+        glDeleteProgram(lightingShader->ID);
+        glDeleteProgram(lightingCubeShader->ID);
+    });
+
     uint32_t vertexBufferObj = 0;
-    uint32_t vertexArrayObj = 0;
-    // uint32_t elementBufferObj = 0;
+    uint32_t cubeVertexArrayObj = 0;
+    uint32_t lightSourceCubeVertexArrayObj = 0;
     {
         // clang-format off
         float vertices[] = {
@@ -195,96 +208,31 @@ int main()
         // clang-format on
 
         glGenBuffers(1, &vertexBufferObj);
-        glGenVertexArrays(1, &vertexArrayObj);
-        // glGenBuffers(1, &elementBufferObj);
-
-        glBindVertexArray(vertexArrayObj);
-
         glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObj);
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-        // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementBufferObj);
-        // glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
+        glGenVertexArrays(1, &cubeVertexArrayObj);
+        glBindVertexArray(cubeVertexArrayObj);
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObj);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
 
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-        glEnableVertexAttribArray(2);
+        glGenVertexArrays(1, &lightSourceCubeVertexArrayObj);
+        glBindVertexArray(lightSourceCubeVertexArrayObj);
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObj);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
     }
     SPDLOG_DEBUG("Created Vertice Buffer and Layout Objects");
     DEFER({
         glDeleteBuffers(1, &vertexBufferObj);
-        glDeleteVertexArrays(1, &vertexArrayObj);
+        glDeleteVertexArrays(1, &cubeVertexArrayObj);
     });
-
-    Shader shader("shaders/shader.vert", "shaders/shader.frag");
-    SPDLOG_DEBUG("Created Shader Program");
-    DEFER(glDeleteProgram(shader.ID));
-
-    stbi_set_flip_vertically_on_load(true);
-
-    uint32_t texture = 0;
-    {
-        int width, height, nrChannels;
-        const uint8_t* data = stbi_load("textures/Texturelabs_Brick_159M.jpg",
-            &width, &height, &nrChannels, 0);
-        DEFER(stbi_image_free((void*)data));
-
-        glGenTextures(1, &texture);
-        glBindTexture(GL_TEXTURE_2D, texture);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
-            GL_RGB, GL_UNSIGNED_BYTE, (void*)data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-    }
-    SPDLOG_DEBUG("Created Texture");
-    DEFER(glDeleteTextures(1, &texture));
-
-    uint32_t texture1 = 0;
-    {
-        int width, height, nrChannels;
-        const uint8_t* data = stbi_load("textures/awesomeface.png",
-            &width, &height, &nrChannels, 0);
-        DEFER(stbi_image_free((void*)data));
-
-        glGenTextures(1, &texture1);
-        glBindTexture(GL_TEXTURE_2D, texture1);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
-            GL_RGBA, GL_UNSIGNED_BYTE, (void*)data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-    }
-    SPDLOG_DEBUG("Created Texture1");
-    DEFER(glDeleteTextures(1, &texture1));
-
-    glm::vec3 cubePos[] = {
-        glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec3(2.0f, 5.0f, -15.0f),
-        glm::vec3(-1.5f, -2.2f, -2.5f),
-        glm::vec3(-3.8f, -2.0f, -12.3f),
-        glm::vec3(2.4f, -0.4f, -3.5f),
-        glm::vec3(-1.7f, 3.0f, -7.5f),
-        glm::vec3(1.3f, -2.0f, -2.5f),
-        glm::vec3(1.5f, 2.0f, -2.5f),
-        glm::vec3(1.5f, 0.2f, -1.5f),
-        glm::vec3(-1.3f, 1.0f, -1.5f)
-    };
 
     AppCtx ctx = {
         .camera = {
-            .pos = glm::vec3(0.0f, 0.0f, 3.0f),
-            .front = glm::vec3(0.0f, 0.0f, -1.0f),
+            .pos = glm::vec3(1.3f, 2.3f, 4.0f),
+            .front = glm::vec3(-0.14f, -0.46f, -0.9f),
             .up = glm::vec3(0.0f, 1.0f, 0.0f),
             .speed = 3.0f,
             .fov = 45.0f,
@@ -293,17 +241,16 @@ int main()
             .mouseSensitivity = 0.01f,
             .yaw = -90.0f, // 0 means +ve X axis, and as yaw increases, the turn is anticlockwise
             .pitch = 0.0f },
-        .shader = shader,
+        .lightingShader = *lightingShader,
+        .lightingCubeShader = *lightingCubeShader,
+        .lightSourcePos = glm::vec3(1.2f, 1.0f, 2.0f),
 
-        .texture = { texture, texture1 },
-        .vertexArrayObj = vertexArrayObj,
+        .cubeVertexArrayObj = cubeVertexArrayObj,
+        .lightSourceCubeVertexArrayObj = lightSourceCubeVertexArrayObj,
 
         .deltaSec = 0,
         .prevSec = 0,
-        .mixFactor = 0.5f,
         .clearColor = color(0x01090d),
-        .cubePos = cubePos,
-        .cubePosLen = sizeof(cubePos) / sizeof(cubePos[0]),
         .showDemoWindow = true,
         .cursorReleased = false,
         .firstMouse = true
@@ -324,6 +271,8 @@ void render(GLFWwindow* window, AppCtx& ctx)
     ctx.deltaSec = currentSec - ctx.prevSec;
     ctx.prevSec = currentSec;
 
+    processInput(window);
+
     // Start the Dear ImGui frame
     ImGuiIO& io = ImGui::GetIO();
 
@@ -334,36 +283,30 @@ void render(GLFWwindow* window, AppCtx& ctx)
     ImGuiDockNodeFlags flags = ImGuiDockNodeFlags_PassthruCentralNode;
     ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), flags);
 
-    glfwPollEvents();
-    processInput(window);
-
-    int fbWidth, fbHeight;
-    glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
-
-    float aspect = (float)fbWidth / (float)fbHeight;
-
-    glm::mat4 view = glm::lookAt(ctx.camera.pos, ctx.camera.pos + ctx.camera.front, ctx.camera.up);
-
-    glm::mat4 projection(1.0f);
-    projection = glm::perspective(glm::radians(ctx.camera.fov), aspect, 0.1f, 100.0f);
-
     if (ctx.showDemoWindow) {
         ImGui::ShowDemoWindow(&ctx.showDemoWindow);
     }
 
     {
-        ImGui::Begin("Uniforms");
+        ImGui::Begin("App Ctx");
 
         ImGui::Checkbox("Demo Window", &ctx.showDemoWindow);
 
-        ImGui::SliderFloat("Mix Factor", &ctx.mixFactor, 0.0f, 1.0f);
-        ImGui::SliderFloat("FOV", &ctx.camera.fov, 0.1f, 150.0f);
-        ImGui::SliderFloat("Camera Speed", &ctx.camera.speed, 0.1f, 150.0f);
         ImGui::SliderFloat("Mouse Sensitivity", &ctx.camera.mouseSensitivity, 0.01f, 0.1f);
-
         ImGui::Text("Mouse Cursor. x: %.2f, y: %.2f", ctx.camera.lastX, ctx.camera.lastY);
-        ImGui::Text("Camera Front. (%0.2f, %0.2f, %0.2f)", ctx.camera.front.x, ctx.camera.front.y, ctx.camera.front.z);
         ImGui::Text("Avg %.3f ms/frame | %.1f FPS", 1000.0f / io.Framerate, io.Framerate);
+
+        ImGui::End();
+    }
+
+    {
+        ImGui::Begin("Camera");
+
+        ImGui::SliderFloat("fov", &ctx.camera.fov, 0.1f, 150.0f);
+        ImGui::SliderFloat("speed", &ctx.camera.speed, 0.1f, 150.0f);
+        ImGui::Text("pos   (%0.2f, %0.2f, %0.2f)", ctx.camera.pos.x, ctx.camera.pos.y, ctx.camera.pos.z);
+        ImGui::Text("front (%0.2f, %0.2f, %0.2f)", ctx.camera.front.x, ctx.camera.front.y, ctx.camera.front.z);
+
         ImGui::End();
     }
 
@@ -372,33 +315,45 @@ void render(GLFWwindow* window, AppCtx& ctx)
     glClearColor(ctx.clearColor.x * ctx.clearColor.w, ctx.clearColor.y * ctx.clearColor.w, ctx.clearColor.z * ctx.clearColor.w, ctx.clearColor.w);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    ctx.shader.useProgram();
-    ctx.shader.setUniformInt("texture0", 0);
-    ctx.shader.setUniformInt("texture1", 1);
+    ctx.lightingShader.useProgram();
+    ctx.lightingShader.setUniformVec3f("objectColor", glm::vec3(1.0f, 0.5f, 0.31f));
+    ctx.lightingShader.setUniformVec3f("lightColor", glm::vec3(1.0f, 1.0f, 1.0f));
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, ctx.texture[0]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, ctx.texture[1]);
-    glBindVertexArray(ctx.vertexArrayObj);
+    int fbWidth, fbHeight;
+    glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
 
-    ctx.shader.setUniformFloat("mixFactor", ctx.mixFactor);
-    ctx.shader.setUniformMatrix4f("view", view);
-    ctx.shader.setUniformMatrix4f("projection", projection);
+    float aspect = (float)fbWidth / (float)fbHeight;
 
-    for (int i = 0; i < ctx.cubePosLen; i++) {
-        glm::mat4 model(1.0f);
-        model = glm::scale(model, glm::vec3(0.3f));
-        model = glm::translate(model, ctx.cubePos[i]);
-        float angle = (i % 3 == 0 ? currentSec : 1.0f) * glm::radians(20.0f * i);
-        model = glm::rotate(model, angle, glm::vec3(0.5f, 1.0f, 0.0f));
+    glm::mat4 projection = glm::perspective(
+        glm::radians(ctx.camera.fov), aspect,
+        0.1f, 100.0f);
+    ctx.lightingShader.setUniformMatrix4f("projection", projection);
 
-        ctx.shader.setUniformMatrix4f("model", model);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
+    glm::mat4 view = glm::lookAt(ctx.camera.pos, ctx.camera.pos + ctx.camera.front, ctx.camera.up);
+    ctx.lightingShader.setUniformMatrix4f("view", view);
+
+    glm::mat4 model = glm::mat4(1.0f);
+    ctx.lightingShader.setUniformMatrix4f("model", model);
+
+    glBindVertexArray(ctx.cubeVertexArrayObj);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+
+    ctx.lightingCubeShader.useProgram();
+    ctx.lightingCubeShader.setUniformMatrix4f("projection", projection);
+    ctx.lightingCubeShader.setUniformMatrix4f("view", view);
+
+    glm::mat4 lightModel = glm::mat4(1.0f);
+    lightModel = glm::translate(lightModel, ctx.lightSourcePos);
+    lightModel = glm::scale(lightModel, glm::vec3(0.2f));
+
+    ctx.lightingCubeShader.setUniformMatrix4f("model", lightModel);
+
+    glBindVertexArray(ctx.lightSourceCubeVertexArrayObj);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+    glfwPollEvents();
     glfwSwapBuffers(window);
 }
 

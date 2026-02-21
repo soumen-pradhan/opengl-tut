@@ -20,8 +20,10 @@ static std::string loadFile(const std::filesystem::path& path)
     return data;
 }
 
-Shader::Shader(const std::filesystem::path& vertexShaderPath, const std::filesystem::path& fragShaderPath)
+std::optional<Shader> Shader::init(const std::filesystem::path& vertexShaderPath, const std::filesystem::path& fragShaderPath)
 {
+    Shader shader;
+
     int success = GL_FALSE;
     static char infoLog[512] = { 0 };
 
@@ -37,7 +39,8 @@ Shader::Shader(const std::filesystem::path& vertexShaderPath, const std::filesys
         glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
         if (success == GL_FALSE) {
             glGetShaderInfoLog(vertexShader, sizeof(infoLog), NULL, infoLog);
-            SPDLOG_ERROR("Vertex Shader compilation: {}", infoLog);
+            SPDLOG_ERROR("Vertex Shader compilation ({}): {}", vertexShaderPath.string(), infoLog);
+            return std::nullopt;
         }
     }
 
@@ -53,27 +56,31 @@ Shader::Shader(const std::filesystem::path& vertexShaderPath, const std::filesys
         glGetShaderiv(fragShader, GL_COMPILE_STATUS, &success);
         if (success == GL_FALSE) {
             glGetShaderInfoLog(fragShader, sizeof(infoLog), NULL, infoLog);
-            SPDLOG_ERROR("Vertex Shader compilation: {}", infoLog);
+            SPDLOG_ERROR("Fragment Shader compilation ({}): {}", fragShaderPath.string(), infoLog);
+            return std::nullopt;
         }
     }
 
-    this->ID = glCreateProgram();
+    shader.ID = glCreateProgram();
     {
-        glAttachShader(this->ID, vertexShader);
-        glAttachShader(this->ID, fragShader);
-        glLinkProgram(this->ID);
+        glAttachShader(shader.ID, vertexShader);
+        glAttachShader(shader.ID, fragShader);
+        glLinkProgram(shader.ID);
 
         DEFER({
             glDeleteShader(vertexShader);
             glDeleteShader(fragShader);
         });
 
-        glGetProgramiv(this->ID, GL_LINK_STATUS, &success);
+        glGetProgramiv(shader.ID, GL_LINK_STATUS, &success);
         if (success == GL_FALSE) {
-            glGetProgramInfoLog(this->ID, sizeof(infoLog), NULL, infoLog);
-            SPDLOG_ERROR("Shader linking: {}", infoLog);
+            glGetProgramInfoLog(shader.ID, sizeof(infoLog), NULL, infoLog);
+            SPDLOG_ERROR("Shader linking (vertex: {}, fragment: {}): {}", vertexShaderPath.string(), fragShaderPath.string(), infoLog);
+            return std::nullopt;
         }
     }
+
+    return shader;
 }
 
 void Shader::useProgram() const
@@ -115,4 +122,13 @@ void Shader::setUniformMatrix4f(const char* name, glm::mat4 v) const
         SPDLOG_WARN("Uniform {} not found", name);
     }
     glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(v));
+}
+
+void Shader::setUniformVec3f(const char* name, glm::vec3 v) const
+{
+    int loc = glGetUniformLocation(this->ID, name);
+    if (loc == -1) {
+        SPDLOG_WARN("Uniform {} not found", name);
+    }
+    glUniform3fv(loc, 1, glm::value_ptr(v));
 }
