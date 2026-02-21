@@ -33,6 +33,7 @@ target_sources(${PROJECT_NAME}
             src/include/defer.h
             src/include/shader.h
             src/include/camera.h
+            src/include/color.h
 
     PUBLIC
         FILE_SET gladHeaders
@@ -40,7 +41,6 @@ target_sources(${PROJECT_NAME}
         BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/vendor/glad/include
         FILES
             vendor/glad/include/glad/glad.h
-
 
     PUBLIC
         FILE_SET stb_headers

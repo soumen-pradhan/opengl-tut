@@ -12,6 +12,7 @@
 #include <spdlog/spdlog.h>
 
 #include "camera.h"
+#include "color.h"
 #include "defer.h"
 #include "shader.h"
 
@@ -22,7 +23,6 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 void cursorCallback(GLFWwindow* window, double xpos, double ypos);
 void scrollCallback(GLFWwindow* window, double xpos, double ypos);
 void processInput(GLFWwindow* window);
-constexpr ImVec4 color(uint32_t hex);
 
 template <glm::length_t L, typename T, glm::qualifier Q>
 struct fmt::formatter<glm::vec<L, T, Q>> {
@@ -58,7 +58,7 @@ struct AppCtx {
     uint32_t lightSourceCubeVertexArrayObj;
 
     float deltaSec, prevSec;
-    ImVec4 clearColor;
+    glm::vec4 clearColor;
 
     bool showDemoWindow;
     bool cursorReleased;
@@ -250,7 +250,7 @@ int main()
 
         .deltaSec = 0,
         .prevSec = 0,
-        .clearColor = color(0x01090d),
+        .clearColor = Color::SLATE_950,
         .showDemoWindow = true,
         .cursorReleased = false,
         .firstMouse = true
@@ -316,8 +316,8 @@ void render(GLFWwindow* window, AppCtx& ctx)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     ctx.lightingShader.useProgram();
-    ctx.lightingShader.setUniformVec3f("objectColor", glm::vec3(1.0f, 0.5f, 0.31f));
-    ctx.lightingShader.setUniformVec3f("lightColor", glm::vec3(1.0f, 1.0f, 1.0f));
+    ctx.lightingShader.setUniformVec3f("objectColor", Color::ORANGE_400);
+    ctx.lightingShader.setUniformVec3f("lightColor", Color::WHITE);
 
     int fbWidth, fbHeight;
     glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
@@ -456,15 +456,4 @@ void processInput(GLFWwindow* window)
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         ctx.camera.pos += glm::normalize(glm::cross(ctx.camera.front, ctx.camera.up)) * cameraSpeed;
     }
-}
-
-constexpr ImVec4 color(uint32_t hex)
-{
-    const float inv255 = 1.0f / 255.0f;
-
-    return ImVec4(
-        ((hex >> 16) & 0xFF) * inv255,
-        ((hex >> 8) & 0xFF) * inv255,
-        (hex & 0xFF) * inv255,
-        1.0f);
 }
